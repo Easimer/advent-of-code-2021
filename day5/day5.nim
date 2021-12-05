@@ -2,7 +2,6 @@ import json
 import os
 import strutils
 import sugar
-import std/sets
 
 type
     Point = object
@@ -10,62 +9,43 @@ type
     Line = object
         p0, p1: Point
 
+const WIDTH = 1000
+const HEIGHT = 1000
+
 iterator pointsOf(line: Line): Point =
-    var x = float(line.p0.x)
-    var y = float(line.p0.y)
-    var prevx = -1
-    var prevy = -1
+    var x = line.p0.x
+    var y = line.p0.y
     let dx = line.p1.x - line.p0.x
     let dy = line.p1.y - line.p0.y
-    let stepx = if dx == 0: 0.0 else: float(dx) / abs(float(dx))
-    let stepy = if dy == 0: 0.0 else: float(dy) / abs(float(dy))
+    let stepx = if dx == 0: 0 else: int(dx / abs(dx))
+    let stepy = if dy == 0: 0 else: int(dy / abs(dy))
 
     while int(x) != line.p1.x or int(y) != line.p1.y:
-        let xi = int(x)
-        let yi = int(y)
-        if xi != prevx or yi != prevy:
-            yield Point(x: xi, y: yi)
-            prevx = xi
-            prevy = yi
+        yield Point(x: x, y: y)
         x += stepx
         y += stepy
     yield line.p1
 
-func part1(lines: seq[Line]): string =
-    let WIDTH = 1000
-    let HEIGHT = 1000
-    var field = newSeq[int](WIDTH * HEIGHT)
-
-    let simpleLines = collect(newSeq):
-        for line in lines:
-            if line.p0.x == line.p1.x or line.p0.y == line.p1.y:
-                line
-    
-    for line in simpleLines:
-        for point in pointsOf(line):
-            field[point.y * WIDTH + point.x] += 1
-    
-    var counter = 0
-    for v in field:
-        if v >= 2:
-            counter += 1
-    return $counter
-
-
-func part2(lines: seq[Line]): string =
-    let WIDTH = 1000
-    let HEIGHT = 1000
+func countOverlaps(lines: seq[Line]): int =
     var field = newSeq[int](WIDTH * HEIGHT)
 
     for line in lines:
         for point in pointsOf(line):
             field[point.y * WIDTH + point.x] += 1
     
-    var counter = 0
     for v in field:
         if v >= 2:
-            counter += 1
-    return $counter
+            result += 1
+
+func part1(lines: seq[Line]): string =
+    let nonDiagonals = collect(newSeq):
+        for line in lines:
+            if line.p0.x == line.p1.x or line.p0.y == line.p1.y:
+                line
+    return $countOverlaps(nonDiagonals)
+
+func part2(lines: seq[Line]): string =
+    return $countOverlaps(lines)
 
 func parsePoint(s: string): Point =
     let c = s.split(',')
