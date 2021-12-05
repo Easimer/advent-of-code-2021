@@ -24,7 +24,7 @@ makeFile('{}.txt')
 with open(root + 'output.txt', 'wb') as f:
     pass
 
-with open(root + 'Makefile', 'wb') as f:
+with open(root + 'Makefile', 'w') as f:
     f.write('NIMC=nim c\n\n')
     f.write('all: {0}.exe {0}.dbg.exe\n\n'.format(name))
     f.write('{0}.dbg.exe: {0}.nim\n'.format(name))
