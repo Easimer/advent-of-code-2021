@@ -2,7 +2,6 @@ import std/json
 import std/sugar
 import std/tables
 import std/strutils
-import std/sequtils
 import std/os
 import std/sets
 
@@ -14,12 +13,30 @@ type
         Small
     Cave = object
         kind: CaveKind
+    CaveID = int64
     CaveSystem = object
-        caves: Table[string, Cave]
-        caveConnections: Table[string, seq[string]]
-    Path = seq[string]
+        caves: Table[CaveID, Cave]
+        caveConnections: Table[CaveID, seq[CaveID]]
+    Path = seq[CaveID]
     PathConstraint = proc(cs: CaveSystem, path: Path): bool
     OnCompletePathCallback = proc (path: Path): void
+
+# Maps a cave ID string to a unique integer
+func toCaveId(s: string): CaveID =
+    result = 0
+    for i in countdown(high(s), 0):
+        # Map characters to
+        # A-Z: 00-25
+        # a-z: 26-50
+        let c = s[i]
+        let n = if c in 'A'..'Z':
+            int(c) - 65
+        else:
+            int(c) - 97 + 26
+        result = result * 51 + n
+
+const CAVEID_START = toCaveId("start")
+const CAVEID_END = toCaveId("end")
 
 func getCaveKind(caveId: string): CaveKind =
     if caveId == "start": return Start
@@ -27,18 +44,18 @@ func getCaveKind(caveId: string): CaveKind =
     if caveId[0] in 'a'..'z': return Small
     if caveId[0] in 'A'..'Z': return Big
 
-iterator connections(f: File): ((string, CaveKind), (string, CaveKind)) =
+iterator connections(f: File): ((CaveID, CaveKind), (CaveID, CaveKind)) =
     for line in f.lines:
         let p = line.split('-')
         let c0 = p[0]
         let c1 = p[1]
-        yield ((c0, getCaveKind(c0)), (c1, getCaveKind(c1)))
+        yield ((c0.toCaveId(), getCaveKind(c0)), (c1.toCaveId(), getCaveKind(c1)))
 
-func connect(cs: var CaveSystem, c0: string, c1: string) =
+func connect(cs: var CaveSystem, c0: CaveID, c1: CaveID) =
     if c0 notin cs.caveConnections:
-        cs.caveConnections[c0] = newSeq[string]()
+        cs.caveConnections[c0] = newSeq[CaveID]()
     if c1 notin cs.caveConnections:
-        cs.caveConnections[c1] = newSeq[string]()
+        cs.caveConnections[c1] = newSeq[CaveID]()
     
     cs.caveConnections[c0].add(c1)
     cs.caveConnections[c1].add(c0)
@@ -51,7 +68,7 @@ proc readCaveSystem(f: File, cs: var CaveSystem): bool =
     true
 
 func smallCavesVisitedAtMostOnce(cs: CaveSystem, path: Path): bool =
-    var visited: HashSet[string]
+    var visited: HashSet[CaveID]
 
     for elem in path:
         let kind = cs.caves[elem].kind
@@ -63,7 +80,7 @@ func smallCavesVisitedAtMostOnce(cs: CaveSystem, path: Path): bool =
     return true
 
 func smallCavesVisitedAtMostOnceWithASingleOneTwice(cs: CaveSystem, path: Path): bool =
-    var visited: HashSet[string]
+    var visited: HashSet[CaveID]
     var twiceVisit = false
 
     for elem in path:
@@ -78,23 +95,23 @@ func smallCavesVisitedAtMostOnceWithASingleOneTwice(cs: CaveSystem, path: Path):
         
     return true
 
-func cursor(path: Path): string = path[high(path)]
+func cursor(path: Path): CaveID = path[high(path)]
 
-func isPathComplete(path: Path): bool = path.cursor() == "end"
+func isPathComplete(path: Path): bool = path.cursor() == CAVEID_END
 
-func expandPath(cs: CaveSystem, path: Path, C: PathConstraint, cb: OnCompletePathCallback) =
+func expandPath(cs: CaveSystem, path: var Path, C: PathConstraint, cb: OnCompletePathCallback) =
     for caveId in cs.caveConnections[path.cursor()]:
-        if caveId == "start": continue
-        var newPath = path
-        newPath.add(caveId)
-        if cs.C(newPath):
-            if isPathComplete(newPath):
-                cb(newPath)
+        if caveId == CAVEID_START: continue
+        path.add(caveId)
+        if cs.C(path):
+            if isPathComplete(path):
+                cb(path)
             else:
-                cs.expandPath(newPath, C, cb)
+                cs.expandPath(path, C, cb)
+        discard path.pop()
 
 func paths(cs: CaveSystem, C: PathConstraint, cb: OnCompletePathCallback) =
-    let initPath: Path = @["start"]
+    var initPath: Path = @[CAVEID_START]
     cs.expandPath(initPath, C, cb)
 
 func part1(cs: CaveSystem): string =
